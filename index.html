@@ -3,8 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Shareable Expense Tracker</title>
+    <title>Enhanced Expense Tracker</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
     <style>
         * {
             box-sizing: border-box;
@@ -19,14 +21,12 @@
             line-height: 1.6;
             padding: 20px;
             min-height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
         }
         
         .container {
             width: 100%;
-            max-width: 800px;
+            max-width: 900px;
+            margin: 0 auto;
             background: white;
             border-radius: 15px;
             box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
@@ -38,6 +38,7 @@
             color: white;
             padding: 20px;
             text-align: center;
+            position: relative;
         }
         
         h1 {
@@ -47,16 +48,26 @@
         
         .instructions {
             background: #e8f4fc;
-            padding: 15px;
-            border-radius: 8px;
             margin: 20px;
-            font-size: 1rem;
-            line-height: 1.5;
+            border-radius: 8px;
+            overflow: hidden;
         }
         
-        .instructions h3 {
-            color: #2c3e50;
-            margin-bottom: 10px;
+        .instructions-header {
+            padding: 15px;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .instructions-content {
+            padding: 0 15px 15px;
+            display: none;
+        }
+        
+        .instructions-content.show {
+            display: block;
         }
         
         .instructions ol {
@@ -73,14 +84,14 @@
             margin: 20px;
         }
         
-        input, button {
-            padding: 14px;
+        input, button, select {
+            padding: 12px;
             border: 1px solid #ddd;
             border-radius: 8px;
             font-size: 16px;
         }
         
-        input {
+        input, select {
             flex: 1;
             background: #f9f9f9;
         }
@@ -103,7 +114,7 @@
         
         .expense-form {
             display: grid;
-            grid-template-columns: 1fr 1fr auto;
+            grid-template-columns: 1fr 1fr 1fr auto;
             gap: 10px;
             margin: 0 20px 20px;
         }
@@ -115,7 +126,7 @@
         }
         
         th, td {
-            padding: 14px 15px;
+            padding: 12px 15px;
             text-align: left;
             border-bottom: 1px solid #ddd;
         }
@@ -130,6 +141,11 @@
             background-color: #f7f9ff;
         }
         
+        .action-buttons {
+            display: flex;
+            gap: 5px;
+        }
+        
         .delete-btn {
             background: #e74c3c;
             padding: 6px 10px;
@@ -138,6 +154,16 @@
         
         .delete-btn:hover {
             background: #c0392b;
+        }
+        
+        .edit-btn {
+            background: #f39c12;
+            padding: 6px 10px;
+            font-size: 14px;
+        }
+        
+        .edit-btn:hover {
+            background: #e67e22;
         }
         
         .summary {
@@ -182,7 +208,15 @@
             transform: translateX(0);
         }
         
-        @media (max-width: 600px) {
+        .download-btn {
+            background: #27ae60;
+        }
+        
+        .download-btn:hover {
+            background: #219653;
+        }
+        
+        @media (max-width: 768px) {
             .expense-form {
                 grid-template-columns: 1fr;
             }
@@ -196,38 +230,35 @@
                 gap: 15px;
                 text-align: center;
             }
-        }
-
-        .github-info {
-            background: #f5f5f5;
-            padding: 15px;
-            margin: 20px;
-            border-radius: 8px;
-            border-left: 4px solid #6cc644;
+            
+            .action-buttons {
+                flex-direction: column;
+            }
         }
     </style>
 </head>
 <body>
     <div class="container">
         <header>
-            <h1><i class="fas fa-receipt"></i> Shareable Expense Tracker</h1>
+            <h1><i class="fas fa-receipt"></i> Enhanced Expense Tracker</h1>
             <p>Track and share expenses with anyone</p>
         </header>
         
-        <div class="github-info">
-            <h3><i class="fab fa-github"></i> Hosted on GitHub Pages</h3>
-            <p>Your expense tracker is now live on the web! Share the link below with anyone.</p>
-        </div>
-        
         <div class="instructions">
-            <h3><i class="fas fa-info-circle"></i> How to use this expense tracker:</h3>
-            <ol>
-                <li>Add expenses using the form below</li>
-                <li>Copy the shareable link and send it to others</li>
-                <li>Anyone with the link can view the expenses</li>
-                <li>Only you can modify expenses from your browser</li>
-                <li>Expenses are saved in your browser's local storage</li>
-            </ol>
+            <div class="instructions-header" onclick="toggleInstructions()">
+                <h3><i class="fas fa-info-circle"></i> How to use this expense tracker</h3>
+                <i class="fas fa-chevron-down" id="instructions-icon"></i>
+            </div>
+            <div class="instructions-content" id="instructions-content">
+                <ol>
+                    <li>Add expenses using the form below</li>
+                    <li>Copy the shareable link and send it to others</li>
+                    <li>Anyone with the link can view the expenses</li>
+                    <li>Only you can modify expenses from your browser</li>
+                    <li>Expenses are saved in your browser's local storage</li>
+                    <li>Click "Download PDF" to save a report of your expenses</li>
+                </ol>
+            </div>
         </div>
         
         <div class="share-section">
@@ -240,7 +271,8 @@
         <h2 style="margin: 0 20px 10px;">Add New Expense</h2>
         <div class="expense-form">
             <input type="text" id="expenseDesc" placeholder="Description (e.g., Dinner, Groceries)">
-            <input type="number" id="expenseAmount" placeholder="Amount" step="0.01">
+            <input type="number" id="expenseAmount" placeholder="Amount (Rs)" step="0.01">
+            <input type="date" id="expenseDate">
             <button onclick="addExpense()">
                 <i class="fas fa-plus"></i> Add Expense
             </button>
@@ -251,9 +283,9 @@
             <thead>
                 <tr>
                     <th>Description</th>
-                    <th>Amount</th>
+                    <th>Amount (Rs)</th>
                     <th>Date</th>
-                    <th>Action</th>
+                    <th>Actions</th>
                 </tr>
             </thead>
             <tbody id="expensesList">
@@ -263,9 +295,12 @@
         
         <div class="summary">
             <div>
-                <h3>Total Expenses: <span id="totalAmount" class="currency">$0.00</span></h3>
+                <h3>Total Expenses: <span id="totalAmount" class="currency">Rs 0.00</span></h3>
             </div>
-            <div>
+            <div style="display: flex; gap: 10px;">
+                <button onclick="downloadPDF()" class="download-btn">
+                    <i class="fas fa-download"></i> Download PDF
+                </button>
                 <button onclick="clearAllExpenses()" style="background: #e67e22;">
                     <i class="fas fa-trash"></i> Clear All
                 </button>
@@ -278,18 +313,45 @@
     <script>
         // Initialize expenses array
         let expenses = [];
+        let editingId = null;
         
         // DOM elements
         const expensesList = document.getElementById('expensesList');
         const totalAmountElement = document.getElementById('totalAmount');
         const shareUrlInput = document.getElementById('shareUrl');
         const notification = document.getElementById('notification');
+        const expenseDateInput = document.getElementById('expenseDate');
+        
+        // Set default date to today
+        window.onload = function() {
+            const today = new Date();
+            const yyyy = today.getFullYear();
+            let mm = today.getMonth() + 1;
+            let dd = today.getDate();
+            
+            if (dd < 10) dd = '0' + dd;
+            if (mm < 10) mm = '0' + mm;
+            
+            const formattedToday = `${yyyy}-${mm}-${dd}`;
+            expenseDateInput.value = formattedToday;
+            
+            checkForSharedSheet();
+        };
+        
+        // Toggle instructions visibility
+        function toggleInstructions() {
+            const content = document.getElementById('instructions-content');
+            const icon = document.getElementById('instructions-icon');
+            
+            content.classList.toggle('show');
+            icon.classList.toggle('fa-chevron-down');
+            icon.classList.toggle('fa-chevron-up');
+        }
         
         // Generate a unique ID for this expense sheet
         function getSheetId() {
             let sheetId = localStorage.getItem('expenseSheetId');
             if (!sheetId) {
-                // Generate a random ID
                 sheetId = 'expense_' + Math.random().toString(36).substr(2, 9);
                 localStorage.setItem('expenseSheetId', sheetId);
             }
@@ -320,29 +382,67 @@
         function addExpense() {
             const descInput = document.getElementById('expenseDesc');
             const amountInput = document.getElementById('expenseAmount');
+            const dateInput = document.getElementById('expenseDate');
             
             const description = descInput.value.trim();
             const amount = parseFloat(amountInput.value);
+            const date = dateInput.value;
             
-            if (!description || isNaN(amount) || amount <= 0) {
-                alert('Please enter a valid description and amount.');
+            if (!description || isNaN(amount) || amount <= 0 || !date) {
+                alert('Please enter a valid description, amount, and date.');
                 return;
             }
             
-            const newExpense = {
-                id: Date.now(),
-                description,
-                amount,
-                date: new Date().toLocaleDateString()
-            };
+            if (editingId) {
+                // Update existing expense
+                const index = expenses.findIndex(expense => expense.id === editingId);
+                if (index !== -1) {
+                    expenses[index] = {
+                        id: editingId,
+                        description,
+                        amount,
+                        date: formatDateForDisplay(date)
+                    };
+                }
+                editingId = null;
+            } else {
+                // Add new expense
+                const newExpense = {
+                    id: Date.now(),
+                    description,
+                    amount,
+                    date: formatDateForDisplay(date)
+                };
+                
+                expenses.push(newExpense);
+            }
             
-            expenses.push(newExpense);
             saveExpenses();
             
-            // Clear input fields
+            // Clear input fields and reset date to today
             descInput.value = '';
             amountInput.value = '';
+            const today = new Date();
+            const yyyy = today.getFullYear();
+            let mm = today.getMonth() + 1;
+            let dd = today.getDate();
+            
+            if (dd < 10) dd = '0' + dd;
+            if (mm < 10) mm = '0' + mm;
+            
+            const formattedToday = `${yyyy}-${mm}-${dd}`;
+            dateInput.value = formattedToday;
             descInput.focus();
+        }
+        
+        // Format date for display
+        function formatDateForDisplay(dateString) {
+            const date = new Date(dateString);
+            return date.toLocaleDateString('en-US', { 
+                year: 'numeric', 
+                month: 'short', 
+                day: 'numeric' 
+            });
         }
         
         // Delete an expense
@@ -350,6 +450,32 @@
             if (confirm('Are you sure you want to delete this expense?')) {
                 expenses = expenses.filter(expense => expense.id !== id);
                 saveExpenses();
+            }
+        }
+        
+        // Edit an expense
+        function editExpense(id) {
+            const expense = expenses.find(expense => expense.id === id);
+            if (expense) {
+                document.getElementById('expenseDesc').value = expense.description;
+                document.getElementById('expenseAmount').value = expense.amount;
+                
+                // Convert display date back to input format
+                const dateParts = expense.date.replace(',', '').split(' ');
+                const months = {
+                    'Jan': '01', 'Feb': '02', 'Mar': '03', 'Apr': '04',
+                    'May': '05', 'Jun': '06', 'Jul': '07', 'Aug': '08',
+                    'Sep': '09', 'Oct': '10', 'Nov': '11', 'Dec': '12'
+                };
+                const yyyy = dateParts[2];
+                const mm = months[dateParts[0]];
+                const dd = dateParts[1];
+                
+                document.getElementById('expenseDate').value = `${yyyy}-${mm}-${dd}`;
+                editingId = id;
+                
+                // Scroll to form
+                document.getElementById('expenseDesc').focus();
             }
         }
         
@@ -370,9 +496,14 @@
             
             if (expenses.length === 0) {
                 expensesList.innerHTML = '<tr><td colspan="4" style="text-align: center;">No expenses added yet</td></tr>';
-                totalAmountElement.textContent = '$0.00';
+                totalAmountElement.textContent = 'Rs 0.00';
                 return;
             }
+            
+            // Sort expenses by date (newest first)
+            expenses.sort((a, b) => {
+                return new Date(b.date) - new Date(a.date);
+            });
             
             expenses.forEach(expense => {
                 total += expense.amount;
@@ -380,26 +511,30 @@
                 const row = document.createElement('tr');
                 row.innerHTML = `
                     <td>${expense.description}</td>
-                    <td>$${expense.amount.toFixed(2)}</td>
+                    <td>Rs ${expense.amount.toFixed(2)}</td>
                     <td>${expense.date}</td>
                     <td>
-                        <button class="delete-btn" onclick="deleteExpense(${expense.id})">
-                            <i class="fas fa-trash"></i> Delete
-                        </button>
+                        <div class="action-buttons">
+                            <button class="edit-btn" onclick="editExpense(${expense.id})">
+                                <i class="fas fa-edit"></i> Edit
+                            </button>
+                            <button class="delete-btn" onclick="deleteExpense(${expense.id})">
+                                <i class="fas fa-trash"></i> Delete
+                            </button>
+                        </div>
                     </td>
                 `;
                 
                 expensesList.appendChild(row);
             });
             
-            totalAmountElement.textContent = `$${total.toFixed(2)}`;
+            totalAmountElement.textContent = `Rs ${total.toFixed(2)}`;
         }
         
         // Update the share URL
         function updateShareUrl() {
             const sheetId = getSheetId();
-            // Create a URL with the sheet ID as a parameter
-            const currentUrl = window.location.href.split('?')[0];
+            const currentUrl = window.location.origin + window.location.pathname;
             shareUrlInput.value = `${currentUrl}?sheet=${sheetId}`;
         }
         
@@ -409,10 +544,65 @@
             document.execCommand('copy');
             
             // Show notification
+            showNotification('Link copied to clipboard!');
+        }
+        
+        // Show notification
+        function showNotification(message) {
+            notification.textContent = message;
             notification.classList.add('show');
             setTimeout(() => {
                 notification.classList.remove('show');
             }, 3000);
+        }
+        
+        // Download PDF
+        function downloadPDF() {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+            
+            // Add title
+            doc.setFontSize(20);
+            doc.text('Expense Report', 105, 15, { align: 'center' });
+            
+            // Add date
+            doc.setFontSize(12);
+            doc.text(`Generated on: ${new Date().toLocaleDateString()}`, 105, 22, { align: 'center' });
+            
+            // Prepare table data
+            const tableData = expenses.map(expense => [
+                expense.description,
+                `Rs ${expense.amount.toFixed(2)}`,
+                expense.date
+            ]);
+            
+            // Add total row
+            const total = expenses.reduce((sum, expense) => sum + expense.amount, 0);
+            tableData.push([
+                { content: 'TOTAL', styles: { fontStyle: 'bold' } },
+                { content: `Rs ${total.toFixed(2)}`, styles: { fontStyle: 'bold' } },
+                ''
+            ]);
+            
+            // Create table
+            doc.autoTable({
+                startY: 30,
+                head: [['Description', 'Amount (Rs)', 'Date']],
+                body: tableData,
+                theme: 'grid',
+                headStyles: {
+                    fillColor: [67, 97, 238],
+                    textColor: 255
+                },
+                styles: {
+                    fontSize: 10,
+                    cellPadding: 3
+                },
+                margin: { top: 30 }
+            });
+            
+            // Save the PDF
+            doc.save('expense-report.pdf');
         }
         
         // Check if we're loading a shared sheet
@@ -431,6 +621,7 @@
                     // Disable editing for shared sheets
                     document.querySelector('.expense-form').style.display = 'none';
                     document.querySelector('button[onclick="clearAllExpenses()"]').style.display = 'none';
+                    document.querySelector('button[onclick="downloadPDF()"]').style.display = 'none';
                     document.getElementById('shareUrl').value = window.location.href;
                     document.querySelector('h1').textContent = 'Shared Expense Tracker (View Only)';
                 } else {
@@ -442,9 +633,6 @@
                 loadExpenses();
             }
         }
-        
-        // Initialize the app
-        window.onload = checkForSharedSheet;
     </script>
 </body>
 </html>
