@@ -3,11 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Enhanced Expense Tracker</title>
+    <title>Secure Expense Tracker</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-analytics-compat.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
     <style>
@@ -24,12 +24,14 @@
             line-height: 1.6;
             padding: 20px;
             min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
         }
         
         .container {
             width: 100%;
             max-width: 900px;
-            margin: 0 auto;
             background: white;
             border-radius: 15px;
             box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
@@ -219,20 +221,64 @@
             background: #219653;
         }
         
-        .status-indicator {
-            display: inline-block;
-            width: 12px;
-            height: 12px;
-            border-radius: 50%;
-            margin-right: 8px;
+        .password-section {
+            background: #fff3cd;
+            padding: 15px;
+            margin: 20px;
+            border-radius: 8px;
+            border-left: 4px solid #ffc107;
         }
         
-        .status-online {
-            background-color: #2ecc71;
+        .password-form {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
         }
         
-        .status-offline {
-            background-color: #e74c3c;
+        .view-only {
+            opacity: 0.7;
+            pointer-events: none;
+        }
+        
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .modal-content {
+            background-color: white;
+            padding: 30px;
+            border-radius: 10px;
+            width: 90%;
+            max-width: 400px;
+            text-align: center;
+        }
+        
+        .modal-input {
+            width: 100%;
+            padding: 12px;
+            margin: 15px 0;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 16px;
+        }
+        
+        .modal-btn {
+            padding: 12px 20px;
+            background: #3498db;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
         }
         
         @media (max-width: 768px) {
@@ -253,15 +299,18 @@
             .action-buttons {
                 flex-direction: column;
             }
+            
+            .password-form {
+                flex-direction: column;
+            }
         }
     </style>
 </head>
 <body>
     <div class="container">
         <header>
-            <h1><i class="fas fa-receipt"></i> Enhanced Expense Tracker</h1>
-            <p>Track and share expenses with anyone</p>
-            <p id="connectionStatus"><span class="status-indicator status-online" id="statusIndicator"></span> <span id="statusText">Connected to Cloud</span></p>
+            <h1><i class="fas fa-receipt"></i> Secure Expense Tracker</h1>
+            <p>Track and share expenses with password protection</p>
         </header>
         
         <div class="instructions">
@@ -272,12 +321,23 @@
             <div class="instructions-content" id="instructions-content">
                 <ol>
                     <li>Add expenses using the form below</li>
-                    <li>Copy the shareable link and send it to others</li>
-                    <li>Anyone with the link can view the expenses</li>
+                    <li>Set a password for your expense sheet</li>
+                    <li>Copy the shareable link and send it to others along with the password</li>
+                    <li>Anyone with the link and password can view the expenses</li>
                     <li>Only you can modify expenses from your browser</li>
-                    <li>Expenses are saved in the cloud and update in real-time</li>
                     <li>Click "Download PDF" to save a report of your expenses</li>
                 </ol>
+            </div>
+        </div>
+        
+        <div class="password-section">
+            <h3><i class="fas fa-lock"></i> Password Protection</h3>
+            <p>Set a password that others will need to view your expenses</p>
+            <div class="password-form">
+                <input type="password" id="passwordInput" placeholder="Set a password">
+                <button onclick="setPassword()">
+                    <i class="fas fa-key"></i> Set Password
+                </button>
             </div>
         </div>
         
@@ -309,7 +369,7 @@
                 </tr>
             </thead>
             <tbody id="expensesList">
-                <tr><td colspan="4" style="text-align: center;">Loading expenses...</td></tr>
+                <tr><td colspan="4" style="text-align: center;">No expenses added yet</td></tr>
             </tbody>
         </table>
         
@@ -328,28 +388,23 @@
         </div>
     </div>
 
+    <div class="modal" id="passwordModal">
+        <div class="modal-content">
+            <h2><i class="fas fa-lock"></i> Password Required</h2>
+            <p>Please enter the password to view these expenses</p>
+            <input type="password" id="modalPasswordInput" class="modal-input" placeholder="Enter password">
+            <button class="modal-btn" onclick="checkPassword()">Access Expenses</button>
+        </div>
+    </div>
+
     <div class="notification" id="notification">Link copied to clipboard!</div>
 
     <script>
-        // Your web app's Firebase configuration
-        const firebaseConfig = {
-            apiKey: "AIzaSyDn4G9Aa1_lAY_m2mxg_ViKLM9Lb5hc35o",
-            authDomain: "expense-tracker-a5a6b.firebaseapp.com",
-            projectId: "expense-tracker-a5a6b",
-            storageBucket: "expense-tracker-a5a6b.firebasestorage.app",
-            messagingSenderId: "809124670090",
-            appId: "1:809124670090:web:4256ac9e961e5940df5b73",
-            measurementId: "G-RRQXG0N707"
-        };
-
-        // Initialize Firebase
-        firebase.initializeApp(firebaseConfig);
-        const analytics = firebase.analytics();
-        const db = firebase.firestore();
-        
         // Initialize expenses array
         let expenses = [];
         let editingId = null;
+        let isOwner = true;
+        let sheetPassword = "";
         
         // DOM elements
         const expensesList = document.getElementById('expensesList');
@@ -357,8 +412,8 @@
         const shareUrlInput = document.getElementById('shareUrl');
         const notification = document.getElementById('notification');
         const expenseDateInput = document.getElementById('expenseDate');
-        const statusIndicator = document.getElementById('statusIndicator');
-        const statusText = document.getElementById('statusText');
+        const passwordModal = document.getElementById('passwordModal');
+        const modalPasswordInput = document.getElementById('modalPasswordInput');
         
         // Set default date to today
         window.onload = function() {
@@ -374,7 +429,6 @@
             expenseDateInput.value = formattedToday;
             
             checkForSharedSheet();
-            setupRealTimeListener();
         };
         
         // Toggle instructions visibility
@@ -393,83 +447,70 @@
             if (!sheetId) {
                 sheetId = 'expense_' + Math.random().toString(36).substr(2, 9);
                 localStorage.setItem('expenseSheetId', sheetId);
-                
-                // Create a new document in Firestore
-                db.collection('expenseSheets').doc(sheetId).set({
-                    createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-                    expenses: []
-                }).catch((error) => {
-                    console.error("Error creating document: ", error);
-                    setOfflineStatus();
-                });
             }
             return sheetId;
         }
         
-        // Load expenses from Firestore
+        // Set password for the expense sheet
+        function setPassword() {
+            const passwordInput = document.getElementById('passwordInput');
+            const password = passwordInput.value.trim();
+            
+            if (!password) {
+                alert('Please enter a password');
+                return;
+            }
+            
+            // In a real app, you would hash this password before storing
+            sheetPassword = password;
+            localStorage.setItem('expenseSheetPassword', CryptoJS.SHA256(password).toString());
+            
+            showNotification('Password set successfully!');
+            passwordInput.value = '';
+        }
+        
+        // Check password for access
+        function checkPassword() {
+            const enteredPassword = modalPasswordInput.value.trim();
+            const storedHash = localStorage.getItem('sharedSheetPasswordHash');
+            
+            if (CryptoJS.SHA256(enteredPassword).toString() === storedHash) {
+                passwordModal.style.display = 'none';
+                loadExpenses();
+                showNotification('Access granted!');
+            } else {
+                alert('Incorrect password. Please try again.');
+                modalPasswordInput.value = '';
+            }
+        }
+        
+        // Load expenses from localStorage
         function loadExpenses() {
             const sheetId = getSheetId();
+            const storedExpenses = localStorage.getItem(sheetId);
             
-            db.collection('expenseSheets').doc(sheetId).get()
-            .then((doc) => {
-                if (doc.exists) {
-                    const data = doc.data();
-                    expenses = data.expenses || [];
-                    renderExpenses();
-                    updateShareUrl();
-                    setOnlineStatus();
-                }
-            })
-            .catch((error) => {
-                console.error("Error loading expenses:", error);
-                setOfflineStatus();
-                // Fallback to localStorage if Firestore fails
-                const storedExpenses = localStorage.getItem(sheetId);
-                if (storedExpenses) {
-                    expenses = JSON.parse(storedExpenses);
-                    renderExpenses();
-                }
-            });
-        }
-        
-        // Save expenses to Firestore
-        function saveExpenses() {
-            const sheetId = getSheetId();
-            
-            // Save to Firestore
-            db.collection('expenseSheets').doc(sheetId).set({
-                expenses: expenses,
-                updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
-                lastUpdatedBy: getUserId()
-            }, { merge: true })
-            .then(() => {
-                console.log("Expenses saved to Firestore");
-                setOnlineStatus();
-            })
-            .catch((error) => {
-                console.error("Error saving to Firestore:", error);
-                setOfflineStatus();
-                // Fallback to localStorage
-                localStorage.setItem(sheetId, JSON.stringify(expenses));
-            });
+            if (storedExpenses) {
+                expenses = JSON.parse(storedExpenses);
+            }
             
             renderExpenses();
+            updateShareUrl();
         }
         
-        // Set online status indicator
-        function setOnlineStatus() {
-            statusIndicator.className = 'status-indicator status-online';
-            statusText.textContent = 'Connected to Cloud';
-        }
-        
-        // Set offline status indicator
-        function setOfflineStatus() {
-            statusIndicator.className = 'status-indicator status-offline';
-            statusText.textContent = 'Working Offline';
+        // Save expenses to localStorage
+        function saveExpenses() {
+            const sheetId = getSheetId();
+            localStorage.setItem(sheetId, JSON.stringify(expenses));
+            renderExpenses();
         }
         
         // Add a new expense
         function addExpense() {
+            if (!isOwner) {
+                alert('Only the owner can modify expenses');
+                return;
+            }
+            
             const descInput = document.getElementById('expenseDesc');
             const amountInput = document.getElementById('expenseAmount');
             const dateInput = document.getElementById('expenseDate');
@@ -537,6 +578,11 @@
         
         // Delete an expense
         function deleteExpense(id) {
+            if (!isOwner) {
+                alert('Only the owner can modify expenses');
+                return;
+            }
+            
             if (confirm('Are you sure you want to delete this expense?')) {
                 expenses = expenses.filter(expense => expense.id !== id);
                 saveExpenses();
@@ -545,6 +591,11 @@
         
         // Edit an expense
         function editExpense(id) {
+            if (!isOwner) {
+                alert('Only the owner can modify expenses');
+                return;
+            }
+            
             const expense = expenses.find(expense => expense.id === id);
             if (expense) {
                 document.getElementById('expenseDesc').value = expense.description;
@@ -571,6 +622,11 @@
         
         // Clear all expenses
         function clearAllExpenses() {
+            if (!isOwner) {
+                alert('Only the owner can modify expenses');
+                return;
+            }
+            
             if (expenses.length === 0) return;
             
             if (confirm('Are you sure you want to delete ALL expenses? This cannot be undone.')) {
@@ -630,11 +686,16 @@
         
         // Copy share URL to clipboard
         function copyShareUrl() {
+            if (!sheetPassword) {
+                alert('Please set a password first before sharing');
+                return;
+            }
+            
             shareUrlInput.select();
             document.execCommand('copy');
             
             // Show notification
-            showNotification('Link copied to clipboard!');
+            showNotification('Link copied to clipboard! Share this along with the password: ' + sheetPassword);
         }
         
         // Show notification
@@ -643,42 +704,7 @@
             notification.classList.add('show');
             setTimeout(() => {
                 notification.classList.remove('show');
-            }, 3000);
-        }
-        
-        // Generate a simple user ID for tracking who made changes
-        function getUserId() {
-            let userId = localStorage.getItem('expenseUserId');
-            if (!userId) {
-                userId = 'user_' + Math.random().toString(36).substr(2, 5);
-                localStorage.setItem('expenseUserId', userId);
-            }
-            return userId;
-        }
-        
-        // Listen for real-time updates
-        function setupRealTimeListener() {
-            const sheetId = getSheetId();
-            
-            db.collection('expenseSheets').doc(sheetId)
-            .onSnapshot((doc) => {
-                if (doc.exists) {
-                    const data = doc.data();
-                    if (JSON.stringify(data.expenses) !== JSON.stringify(expenses)) {
-                        expenses = data.expenses || [];
-                        renderExpenses();
-                        setOnlineStatus();
-                        
-                        // Show notification if this wasn't our change
-                        if (data.lastUpdatedBy !== getUserId()) {
-                            showNotification('Expenses updated from cloud');
-                        }
-                    }
-                }
-            }, (error) => {
-                console.error("Error setting up real-time listener:", error);
-                setOfflineStatus();
-            });
+            }, 5000);
         }
         
         // Download PDF
@@ -737,30 +763,25 @@
             
             if (sharedSheetId && sharedSheetId !== getSheetId()) {
                 // We're viewing a shared sheet
-                db.collection('expenseSheets').doc(sharedSheetId).get()
-                .then((doc) => {
-                    if (doc.exists) {
-                        const data = doc.data();
-                        expenses = data.expenses || [];
-                        renderExpenses();
-                        
-                        // Disable editing for shared sheets
-                        document.querySelector('.expense-form').style.display = 'none';
-                        document.querySelector('button[onclick="clearAllExpenses()"]').style.display = 'none';
-                        document.querySelector('button[onclick="downloadPDF()"]').style.display = 'none';
-                        document.getElementById('shareUrl').value = window.location.href;
-                        document.querySelector('h1').textContent = 'Shared Expense Tracker (View Only)';
-                        setOnlineStatus();
-                    } else {
-                        alert('The shared expense sheet was not found. It may have been deleted.');
-                        loadExpenses();
-                    }
-                })
-                .catch((error) => {
-                    console.error("Error loading shared sheet:", error);
-                    alert('Error loading shared expenses. Please check your connection.');
-                    setOfflineStatus();
-                });
+                isOwner = false;
+                
+                // Check if we have the password hash stored
+                const storedHash = localStorage.getItem('sharedSheetPasswordHash');
+                
+                if (storedHash) {
+                    // We have the password, load expenses
+                    loadExpenses();
+                    
+                    // Disable editing for shared sheets
+                    document.querySelector('.expense-form').style.display = 'none';
+                    document.querySelector('button[onclick="clearAllExpenses()"]').style.display = 'none';
+                    document.querySelector('.password-section').style.display = 'none';
+                    document.getElementById('shareUrl').value = window.location.href;
+                    document.querySelector('h1').textContent = 'Shared Expense Tracker (View Only)';
+                } else {
+                    // Show password modal
+                    passwordModal.style.display = 'flex';
+                }
             } else {
                 // We're viewing our own sheet
                 loadExpenses();
