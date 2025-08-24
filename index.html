@@ -5,6 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Enhanced Expense Tracker</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-analytics-compat.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
     <style>
@@ -216,6 +219,22 @@
             background: #219653;
         }
         
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        
+        .status-online {
+            background-color: #2ecc71;
+        }
+        
+        .status-offline {
+            background-color: #e74c3c;
+        }
+        
         @media (max-width: 768px) {
             .expense-form {
                 grid-template-columns: 1fr;
@@ -242,6 +261,7 @@
         <header>
             <h1><i class="fas fa-receipt"></i> Enhanced Expense Tracker</h1>
             <p>Track and share expenses with anyone</p>
+            <p id="connectionStatus"><span class="status-indicator status-online" id="statusIndicator"></span> <span id="statusText">Connected to Cloud</span></p>
         </header>
         
         <div class="instructions">
@@ -255,7 +275,7 @@
                     <li>Copy the shareable link and send it to others</li>
                     <li>Anyone with the link can view the expenses</li>
                     <li>Only you can modify expenses from your browser</li>
-                    <li>Expenses are saved in your browser's local storage</li>
+                    <li>Expenses are saved in the cloud and update in real-time</li>
                     <li>Click "Download PDF" to save a report of your expenses</li>
                 </ol>
             </div>
@@ -289,7 +309,7 @@
                 </tr>
             </thead>
             <tbody id="expensesList">
-                <tr><td colspan="4" style="text-align: center;">No expenses added yet</td></tr>
+                <tr><td colspan="4" style="text-align: center;">Loading expenses...</td></tr>
             </tbody>
         </table>
         
@@ -311,6 +331,22 @@
     <div class="notification" id="notification">Link copied to clipboard!</div>
 
     <script>
+        // Your web app's Firebase configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyDn4G9Aa1_lAY_m2mxg_ViKLM9Lb5hc35o",
+            authDomain: "expense-tracker-a5a6b.firebaseapp.com",
+            projectId: "expense-tracker-a5a6b",
+            storageBucket: "expense-tracker-a5a6b.firebasestorage.app",
+            messagingSenderId: "809124670090",
+            appId: "1:809124670090:web:4256ac9e961e5940df5b73",
+            measurementId: "G-RRQXG0N707"
+        };
+
+        // Initialize Firebase
+        firebase.initializeApp(firebaseConfig);
+        const analytics = firebase.analytics();
+        const db = firebase.firestore();
+        
         // Initialize expenses array
         let expenses = [];
         let editingId = null;
@@ -321,6 +357,8 @@
         const shareUrlInput = document.getElementById('shareUrl');
         const notification = document.getElementById('notification');
         const expenseDateInput = document.getElementById('expenseDate');
+        const statusIndicator = document.getElementById('statusIndicator');
+        const statusText = document.getElementById('statusText');
         
         // Set default date to today
         window.onload = function() {
@@ -336,6 +374,7 @@
             expenseDateInput.value = formattedToday;
             
             checkForSharedSheet();
+            setupRealTimeListener();
         };
         
         // Toggle instructions visibility
@@ -354,28 +393,79 @@
             if (!sheetId) {
                 sheetId = 'expense_' + Math.random().toString(36).substr(2, 9);
                 localStorage.setItem('expenseSheetId', sheetId);
+                
+                // Create a new document in Firestore
+                db.collection('expenseSheets').doc(sheetId).set({
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                    expenses: []
+                }).catch((error) => {
+                    console.error("Error creating document: ", error);
+                    setOfflineStatus();
+                });
             }
             return sheetId;
         }
         
-        // Load expenses from localStorage
+        // Load expenses from Firestore
         function loadExpenses() {
             const sheetId = getSheetId();
-            const storedExpenses = localStorage.getItem(sheetId);
             
-            if (storedExpenses) {
-                expenses = JSON.parse(storedExpenses);
-            }
-            
-            renderExpenses();
-            updateShareUrl();
+            db.collection('expenseSheets').doc(sheetId).get()
+            .then((doc) => {
+                if (doc.exists) {
+                    const data = doc.data();
+                    expenses = data.expenses || [];
+                    renderExpenses();
+                    updateShareUrl();
+                    setOnlineStatus();
+                }
+            })
+            .catch((error) => {
+                console.error("Error loading expenses:", error);
+                setOfflineStatus();
+                // Fallback to localStorage if Firestore fails
+                const storedExpenses = localStorage.getItem(sheetId);
+                if (storedExpenses) {
+                    expenses = JSON.parse(storedExpenses);
+                    renderExpenses();
+                }
+            });
         }
         
-        // Save expenses to localStorage
+        // Save expenses to Firestore
         function saveExpenses() {
             const sheetId = getSheetId();
-            localStorage.setItem(sheetId, JSON.stringify(expenses));
+            
+            // Save to Firestore
+            db.collection('expenseSheets').doc(sheetId).set({
+                expenses: expenses,
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                lastUpdatedBy: getUserId()
+            }, { merge: true })
+            .then(() => {
+                console.log("Expenses saved to Firestore");
+                setOnlineStatus();
+            })
+            .catch((error) => {
+                console.error("Error saving to Firestore:", error);
+                setOfflineStatus();
+                // Fallback to localStorage
+                localStorage.setItem(sheetId, JSON.stringify(expenses));
+            });
+            
             renderExpenses();
+        }
+        
+        // Set online status indicator
+        function setOnlineStatus() {
+            statusIndicator.className = 'status-indicator status-online';
+            statusText.textContent = 'Connected to Cloud';
+        }
+        
+        // Set offline status indicator
+        function setOfflineStatus() {
+            statusIndicator.className = 'status-indicator status-offline';
+            statusText.textContent = 'Working Offline';
         }
         
         // Add a new expense
@@ -556,6 +646,41 @@
             }, 3000);
         }
         
+        // Generate a simple user ID for tracking who made changes
+        function getUserId() {
+            let userId = localStorage.getItem('expenseUserId');
+            if (!userId) {
+                userId = 'user_' + Math.random().toString(36).substr(2, 5);
+                localStorage.setItem('expenseUserId', userId);
+            }
+            return userId;
+        }
+        
+        // Listen for real-time updates
+        function setupRealTimeListener() {
+            const sheetId = getSheetId();
+            
+            db.collection('expenseSheets').doc(sheetId)
+            .onSnapshot((doc) => {
+                if (doc.exists) {
+                    const data = doc.data();
+                    if (JSON.stringify(data.expenses) !== JSON.stringify(expenses)) {
+                        expenses = data.expenses || [];
+                        renderExpenses();
+                        setOnlineStatus();
+                        
+                        // Show notification if this wasn't our change
+                        if (data.lastUpdatedBy !== getUserId()) {
+                            showNotification('Expenses updated from cloud');
+                        }
+                    }
+                }
+            }, (error) => {
+                console.error("Error setting up real-time listener:", error);
+                setOfflineStatus();
+            });
+        }
+        
         // Download PDF
         function downloadPDF() {
             const { jsPDF } = window.jspdf;
@@ -612,22 +737,30 @@
             
             if (sharedSheetId && sharedSheetId !== getSheetId()) {
                 // We're viewing a shared sheet
-                const sharedExpenses = localStorage.getItem(sharedSheetId);
-                
-                if (sharedExpenses) {
-                    expenses = JSON.parse(sharedExpenses);
-                    renderExpenses();
-                    
-                    // Disable editing for shared sheets
-                    document.querySelector('.expense-form').style.display = 'none';
-                    document.querySelector('button[onclick="clearAllExpenses()"]').style.display = 'none';
-                    document.querySelector('button[onclick="downloadPDF()"]').style.display = 'none';
-                    document.getElementById('shareUrl').value = window.location.href;
-                    document.querySelector('h1').textContent = 'Shared Expense Tracker (View Only)';
-                } else {
-                    alert('The shared expense sheet was not found. It may have been deleted.');
-                    loadExpenses();
-                }
+                db.collection('expenseSheets').doc(sharedSheetId).get()
+                .then((doc) => {
+                    if (doc.exists) {
+                        const data = doc.data();
+                        expenses = data.expenses || [];
+                        renderExpenses();
+                        
+                        // Disable editing for shared sheets
+                        document.querySelector('.expense-form').style.display = 'none';
+                        document.querySelector('button[onclick="clearAllExpenses()"]').style.display = 'none';
+                        document.querySelector('button[onclick="downloadPDF()"]').style.display = 'none';
+                        document.getElementById('shareUrl').value = window.location.href;
+                        document.querySelector('h1').textContent = 'Shared Expense Tracker (View Only)';
+                        setOnlineStatus();
+                    } else {
+                        alert('The shared expense sheet was not found. It may have been deleted.');
+                        loadExpenses();
+                    }
+                })
+                .catch((error) => {
+                    console.error("Error loading shared sheet:", error);
+                    alert('Error loading shared expenses. Please check your connection.');
+                    setOfflineStatus();
+                });
             } else {
                 // We're viewing our own sheet
                 loadExpenses();
