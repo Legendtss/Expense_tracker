@@ -23,12 +23,14 @@
             line-height: 1.6;
             padding: 20px;
             min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
         }
         
         .container {
             width: 100%;
             max-width: 900px;
-            margin: 0 auto;
             background: white;
             border-radius: 15px;
             box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
@@ -40,7 +42,6 @@
             color: white;
             padding: 20px;
             text-align: center;
-            position: relative;
         }
         
         h1 {
@@ -358,7 +359,13 @@
         };
 
         // Initialize Firebase
-        firebase.initializeApp(firebaseConfig);
+        try {
+            firebase.initializeApp(firebaseConfig);
+            console.log("Firebase initialized successfully");
+        } catch (error) {
+            console.error("Error initializing Firebase:", error);
+        }
+        
         const db = firebase.firestore();
         
         // Initialize expenses array
